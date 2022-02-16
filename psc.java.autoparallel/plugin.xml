@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension
+         point="org.eclipse.jdt.ui.cleanUps">
+      <cleanUp
+            class="psc.java.autoparallel.testing.Testing"
+            id="psc.java.autoparallel.testing.Testing">
+      </cleanUp>
+      <cleanUpConfigurationUI
+            class="psc.java.autoparallel.testing.TestingCleanUpPage"
+            cleanUpKind="cleanUp"
+            name="Graph methods">
+      </cleanUpConfigurationUI>
+      <cleanUpOptionsInitializer
+            class="psc.java.autoparallel.testing.TestingInitializer"
+            cleanUpKind="cleanUp">
+      </cleanUpOptionsInitializer>
+   </extension>
+
+</plugin>
