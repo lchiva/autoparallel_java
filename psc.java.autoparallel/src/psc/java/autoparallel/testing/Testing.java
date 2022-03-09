@@ -1,5 +1,6 @@
 package psc.java.autoparallel.testing;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -8,9 +9,13 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.IMethodBinding;
 import org.eclipse.jdt.core.dom.ITypeBinding;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
@@ -39,6 +44,9 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 	private RefactoringStatus fStatus;
 	List<CompilationUnit> parsedCu;
 	List<MethodDeclaration> parallelizableList = new ArrayList<>();	
+	List<MethodDeclaration> readOnlyList = new ArrayList<>();	
+	List<MethodDeclaration> modifLocalList = new ArrayList<>();	
+	List<MethodDeclaration> ThreadSafeList = new ArrayList<>();	
 	
 	/*
 	 * Method for CleanUp
@@ -70,8 +78,8 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 			fStatus= new RefactoringStatus();
 			//this is to export graph
 			parsedCu = JavaParserHelper.parseSources(project, compilationUnits,monitor);
-			//MethodGraph graph = GraphBuilder.collectGraph(parsedCu);
-			/*
+			MethodGraph graph = GraphBuilder.collectGraph(parsedCu);
+			
 			//exportGraph(graph);
 			try {
 				graph.exportDot(project.getProject().getLocation().toFile().getCanonicalPath() + "/graph.dot");
@@ -79,15 +87,23 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			*/
+			
 			//print CheckCondition: is parrallelizable or not.
 			for (CompilationUnit cu : parsedCu) {
 				CheckCondition checkcon = new CheckCondition();
 				cu.accept(checkcon);
 				for(MethodDeclaration med : checkcon.IsPara) {
 					parallelizableList.add(med);
-					
 				}
+				System.out.println("Parallelizable method: " + parallelizableList);
+//				for(MethodDeclaration med : checkcon.ReadOnlyList) {
+//					readOnlyList.add(med);
+//				}
+//				System.out.println("ReadOnly method: " + readOnlyList);
+//				for(MethodDeclaration med : checkcon.ModifLocalList) {
+//					modifLocalList.add(med);
+//				}
+//				System.out.println("ModifLocal method: " + modifLocalList);
 			}
 		}
 		return new RefactoringStatus();
@@ -100,31 +116,34 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 		return null;
 	}
 	/*
-	 * Method for CleanUp
+	 * Method for CleanUp, to rewrite
 	 */
 	@Override
 	protected ICleanUpFix createFix(CompilationUnit cu) throws CoreException {
 		if(cu == null || !fOptions.isEnabled("cleanup.graph_method")) {return null;}
 		List<CompilationUnitRewriteOperation> rewriteOperations = new ArrayList<>();
-		System.out.println("Parallelizable method: " + parallelizableList);
-		//add .parallel() to a stream
-		for(MethodDeclaration method : parallelizableList) {
-			cu.accept(new ASTVisitor() {
-				public boolean visit(MethodInvocation node) {
-					// x = coll.stream().filter().collect()
-					// look for method invocation with type Stream such that : type of expression is not Stream
-					ITypeBinding resType = node.resolveTypeBinding();
-					if (isStreamType(resType)) {
-						if (! isStreamType(node.getExpression().resolveTypeBinding())) {
-							// node = coll.stream(), expr = coll
-							// TODO : determine if it is safe to do !
+		/*
+		 * Print parallelizable method
+		 */
+//		System.out.println("Parallelizable method: " + parallelizableList);
+		
+		cu.accept(new ASTVisitor() {
+			public boolean visit(MethodInvocation node) {
+				// x = coll.stream().filter().collect()		
+				// look for method invocation with type Stream such that : type of expression is not Stream
+				ITypeBinding resType = node.resolveTypeBinding();
+				if (isStreamType(resType)) {
+					if (! isStreamType(node.getExpression().resolveTypeBinding())) {
+						// node = coll.stream(), expr = coll
+						//TODO : determine if it is safe to do !
+						if(false) {
 							rewriteOperations.add(new StreamToParallel(node));
 						}
 					}
-					return true;
 				}
-			});
-		}
+				return true;
+			}
+		});
 		
 		if(rewriteOperations.isEmpty()) {
 			return null;

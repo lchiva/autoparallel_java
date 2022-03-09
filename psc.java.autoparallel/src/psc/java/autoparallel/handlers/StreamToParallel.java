@@ -22,7 +22,7 @@ public class StreamToParallel extends CompilationUnitRewriteOperation {
 	public void rewriteAST(CompilationUnitRewrite cuRewrite, LinkedProposalModel linkedModel) throws CoreException {
 		AST ast = cuRewrite.getRoot().getAST();   //We obtain the AST from the CompilationUnit. The will be use as a factory
 		final ASTRewrite rewrite = cuRewrite.getASTRewrite();  //We create a new ASTRewrite, that will contain all our modification
-		MethodInvocation invoke = ast.newMethodInvocation();
+		MethodInvocation invoke = ast.newMethodInvocation(); 
 		invoke.setExpression((Expression) ASTNode.copySubtree(ast,node));
 		invoke.setName(ast.newSimpleName("parallel"));
 		rewrite.replace(node, invoke, null); //We add our modification to the record
