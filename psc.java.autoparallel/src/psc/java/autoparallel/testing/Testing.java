@@ -87,7 +87,6 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-			
 			//print CheckCondition: is parrallelizable or not.
 			for (CompilationUnit cu : parsedCu) {
 				CheckCondition checkcon = new CheckCondition();
@@ -122,10 +121,10 @@ public class Testing extends AbstractMultiFix implements ICleanUp  {
 	protected ICleanUpFix createFix(CompilationUnit cu) throws CoreException {
 		if(cu == null || !fOptions.isEnabled("cleanup.graph_method")) {return null;}
 		List<CompilationUnitRewriteOperation> rewriteOperations = new ArrayList<>();
+		
 		/*
-		 * Print parallelizable method
+		 * Check if a parallelizable method is in class stream, we add .parallel() 
 		 */
-//		System.out.println("Parallelizable method: " + parallelizableList);
 		
 		cu.accept(new ASTVisitor() {
 			public boolean visit(MethodInvocation node) {

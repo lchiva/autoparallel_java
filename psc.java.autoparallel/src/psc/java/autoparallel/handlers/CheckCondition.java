@@ -4,9 +4,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.eclipse.jdt.core.Flags;
+import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IJavaElement;
+import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.Assignment;
+import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.IBinding;
 import org.eclipse.jdt.core.dom.IMethodBinding;
 import org.eclipse.jdt.core.dom.IVariableBinding;
@@ -48,7 +53,7 @@ public class CheckCondition extends ASTVisitor {
 		/*
 		 * If method is ThreadSafe, ReadOnly then it is parallelizable
 		 */
-		if(!CheckCons.hasWrite && ThreadSafe) {
+		if(!CheckCons.hasWrite && ThreadSafe && CheckCons.isParallelisable) {
 			IsPara.add(node);
 		}
 		return super.visit(node);
@@ -58,6 +63,7 @@ class CheckConditions extends ASTVisitor {
 	boolean hasWrite = false;
 	boolean isModifLocal = false;
 	boolean ThreadSafe = false;
+	boolean isParallelisable = true;
 
 
 	@Override
@@ -114,6 +120,26 @@ class CheckConditions extends ASTVisitor {
 	@Override
 	//TODO call a method from different class which is not parallelizable
 	public boolean visit(MethodInvocation node) {
+		/*
+		 * Get methodDeclaration from MethodInvocation
+		 */
+		IMethodBinding binding = (IMethodBinding) node.getName().resolveBinding();
+		ICompilationUnit unit = (ICompilationUnit) binding.getJavaElement().getAncestor( IJavaElement.COMPILATION_UNIT );
+		if ( unit == null ) {
+		   // not available, external declaration
+		}
+		ASTParser parser = ASTParser.newParser( AST.getJLSLatest() );
+		parser.setKind( ASTParser.K_COMPILATION_UNIT );
+		parser.setSource( unit );
+		parser.setResolveBindings( true );
+		CompilationUnit cu = (CompilationUnit) parser.createAST( null );
+		MethodDeclaration decl = (MethodDeclaration) cu.findDeclaringNode( binding.getKey() );
+		
+		CheckConditions CheckCon = new CheckConditions();
+		decl.accept(CheckCon);
+		if(CheckCon.hasWrite || !CheckCon.ThreadSafe) {
+			isParallelisable = false;
+		}
 		return super.visit(node);
 	}
 }
