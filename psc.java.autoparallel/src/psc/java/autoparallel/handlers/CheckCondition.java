@@ -8,12 +8,15 @@ import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.Assignment;
 import org.eclipse.jdt.core.dom.IBinding;
+import org.eclipse.jdt.core.dom.IMethodBinding;
 import org.eclipse.jdt.core.dom.IVariableBinding;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.core.dom.Name;
 import org.eclipse.jdt.core.dom.PostfixExpression;
 import org.eclipse.jdt.core.dom.PrefixExpression;
 import org.eclipse.jdt.core.dom.SynchronizedStatement;
+import org.eclipse.jdt.internal.compiler.lookup.MethodBinding;
 
 public class CheckCondition extends ASTVisitor {
 
@@ -24,27 +27,28 @@ public class CheckCondition extends ASTVisitor {
 
 	@Override
 	public boolean visit(MethodDeclaration node) {
-		boolean ThreadSafe = false;
+		boolean ThreadSafe = false;  //initialize threadsafe as false by default
 		CheckConditions CheckCons = new CheckConditions();
 		node.accept(CheckCons);
-		if(!CheckCons.hasWrite) {
+		if(!CheckCons.hasWrite) {  //check if method has write
 			ReadOnlyList.add(node); // add method to list
 		}
-		// if Method modifies the local variable and doesn't modify the variables outside the class
-		// then it is modifLocal
-		if(CheckCons.isModifLocal && !CheckCons.hasWrite) { 
+		if(CheckCons.isModifLocal && !CheckCons.hasWrite) {  // check if method has no write and it modifies local variable
 			ModifLocalList.add(node); // add method to list
 		}
-		// If modifier is Synchronized or its body contains synchronized or it is readOnly
-		// then it is threadSafe 
-		if(Flags.isSynchronized(node.getModifiers()) || CheckCons.ThreadSafe || !CheckCons.hasWrite) { 
+		/*
+		 * Check if the given method contains synchronized modifier
+		 * or method is threadsafe
+		 * or method is readonly
+		 */
+		if(Flags.isSynchronized(node.getModifiers()) || CheckCons.ThreadSafe || !CheckCons.hasWrite) {
 			ThreadSafe = true;
 			ThreadSafeList.add(node);
 		}
 		/*
-		 * If Method is ThreadSafe, ReadOnly then it is parallelizable
+		 * If method is ThreadSafe, ReadOnly then it is parallelizable
 		 */
-		if(!CheckCons.hasWrite && ThreadSafe == true) {
+		if(!CheckCons.hasWrite && ThreadSafe) {
 			IsPara.add(node);
 		}
 		return super.visit(node);
@@ -54,28 +58,28 @@ class CheckConditions extends ASTVisitor {
 	boolean hasWrite = false;
 	boolean isModifLocal = false;
 	boolean ThreadSafe = false;
-	
-	
+
+
 	@Override
 	public boolean visit(SynchronizedStatement node) { // if we meet a synchronized keyword in method, it is threadSafe
 		ThreadSafe = true;
 		return false;
 	}
-	
-	
+	//TODO if the method contains println is it ThreadSafe?
 	@Override
 	// Visit assignment operator
-	public boolean visit(Assignment node) {	
+	public boolean visit(Assignment node) {
 		AssignmentVisitor av = new AssignmentVisitor();
 		node.getLeftHandSide().accept(av);
-		if (av.hasWrite) { // if the method has write then it is readonly
-			hasWrite = true ; 
+		if (av.hasWrite) { // if the method has write then it is not ReadOnly
+			hasWrite = true ;
 		}
-		
-		if (av.isModifLocal) {
-			isModifLocal = true;	
+		/*
+		 * if method modifies local variables and is ReadOnly, then it is modifLocal.
+		 */
+		if (av.isModifLocal && !av.hasWrite) {
+			isModifLocal = true;
 		}
-
 		return super.visit(node);
 	}
 	@Override
@@ -83,12 +87,14 @@ class CheckConditions extends ASTVisitor {
 	public boolean visit(PostfixExpression node) {
 		AssignmentVisitor av = new AssignmentVisitor();
 		node.getOperand().accept(av);
-		if (av.hasWrite) {
-			hasWrite = true;	
+		if (av.hasWrite) { // if the method has write then it is not ReadOnly
+			hasWrite = true;
 		}
-		
-		if (av.isModifLocal) {
-			isModifLocal = true;	
+		/*
+		 * if method modifies local variables and is ReadOnly, then it is modifLocal.
+		 */
+		if (av.isModifLocal  && !av.hasWrite) {
+			isModifLocal = true;
 		}
 		return super.visit(node);
 	}
@@ -97,13 +103,17 @@ class CheckConditions extends ASTVisitor {
 	public boolean visit(PrefixExpression node) {
 		AssignmentVisitor av = new AssignmentVisitor();
 		node.getOperand().accept(av);
-		if (av.hasWrite) {
+		if (av.hasWrite) { // if the method has write then it is not ReadOnly
 			hasWrite = true;
 		}
-		
-		if (av.isModifLocal) {
-			isModifLocal = true;	
+		if (av.isModifLocal  && !av.hasWrite) {
+			isModifLocal = true;
 		}
+		return super.visit(node);
+	}
+	@Override
+	//TODO call a method from different class which is not parallelizable
+	public boolean visit(MethodInvocation node) {
 		return super.visit(node);
 	}
 }
@@ -113,7 +123,7 @@ class AssignmentVisitor extends ASTVisitor {
 	@Override
 	public void preVisit(ASTNode node) {
 		if (node instanceof Name) { //simple name and qualifiedname
-			Name nname = (Name) node;
+			Name nname = (Name) node; 
 			IBinding target = nname.resolveBinding();
 			if (target instanceof IVariableBinding) {
 				IVariableBinding vbind = (IVariableBinding) target;
