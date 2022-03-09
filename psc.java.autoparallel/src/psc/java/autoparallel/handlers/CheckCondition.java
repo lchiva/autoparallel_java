@@ -112,10 +112,8 @@ class CheckConditions extends ASTVisitor {
 		return super.visit(node);
 	}
 	@Override
-	//TODO call a method from different class
+	//TODO call a method from different class which is not parallelizable
 	public boolean visit(MethodInvocation node) {
-		//IMethodBinding key = node.resolveMethodBinding();
-		//System.out.println(key);
 		return super.visit(node);
 	}
 }
@@ -125,7 +123,7 @@ class AssignmentVisitor extends ASTVisitor {
 	@Override
 	public void preVisit(ASTNode node) {
 		if (node instanceof Name) { //simple name and qualifiedname
-			Name nname = (Name) node;
+			Name nname = (Name) node; 
 			IBinding target = nname.resolveBinding();
 			if (target instanceof IVariableBinding) {
 				IVariableBinding vbind = (IVariableBinding) target;
