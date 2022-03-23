@@ -72,8 +72,9 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 			IProgressMonitor monitor) throws CoreException {
 		if (fOptions.isEnabled("cleanup.graph_method")) { //$NON-NLS-1$
 			fStatus= new RefactoringStatus();
-			
+			//list of compilation unit that parsed the argument in
 			List<CompilationUnit> parsedCu = JavaParserHelper.parseSources(project, compilationUnits, monitor);
+			//invocation graph
 			MethodGraph graph = GraphBuilder.collectGraph(parsedCu);
 
 			//exportGraph(graph);
@@ -99,31 +100,45 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 			 * list of list of methods that create cycle in invocation graph
 			 */
 			List<List<MethodDeclaration>> cycleMethod = cycleMethodDeclaration(cycle, graph.getNodes()); 
-			for(Integer i : graphAdjacent) {
+			for(Integer i : graphAdjacent) { // iteration on all node(method)
 				IMethodBinding bind = graph.getNodes().get(i);
-				MethodDeclaration methodDecla =  graph.getNodes().get(bind);
-				if(!inCycle(methodDecla,cycleMethod)) {
-					MethodVisitor visit = new MethodVisitor(methodTag);
+				MethodDeclaration methodDecla =  graph.getNodes().get(bind); // get method declaration correspond to index i
+				// we treat the case that method doesn't create cycle
+				if(!inCycle(methodDecla,cycleMethod)) { // verify if this method doesnt create cycle
+					MethodVisitor visit = new MethodVisitor(methodTag); // call constructor in MethodVisitor
+																		// this give methodTag to class MethodVisitor.
 					methodDecla.accept(visit);
+					// if visit is readonly we add that method in list of method that has tag READ_ONLY
+					if(visit.isReadOnly()) { 
+						methodTag.get(READ_ONLY).add(methodDecla.resolveBinding().getKey());
+					}
+					// if visit is threadSafe and is readOnly we add that method in list of method that has tag THREAD_SAFE
+					if(visit.isThreadSafe() && visit.isReadOnly()) {
+						methodTag.get(THREAD_SAFE).add(methodDecla.resolveBinding().getKey());
+					}
+					// if visit is notPara we add that method in list of method that has tag NOT_PAR
 					if(visit.isNotParallelisable()) {
 						methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
-					}if(visit.isReadOnly()) {
-						methodTag.get(READ_ONLY).add(methodDecla.resolveBinding().getKey());
-					}if(visit.isThreadSafe() && visit.isReadOnly()) {
-						methodTag.get(THREAD_SAFE).add(methodDecla.resolveBinding().getKey());
+					}
+					// if visit is not readonly or not threadSafe, we add that method in list of method that has tag NOT_PAR
+					if(!visit.isReadOnly() || !visit.isThreadSafe()) {
+						methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
 					}
 				}
 			}
+			//we treat the case that method create cycle(it calls other method).
 			for (List<MethodDeclaration> methodDeclaration : cycleMethod) {
 				for (MethodDeclaration method : methodDeclaration) {
 					MethodVisitor visit = new MethodVisitor(methodTag);
 					method.accept(visit);
-					if(visit.isNotParallelisable()) {
-						methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
-					}if(visit.isReadOnly()) {
+					if(visit.isReadOnly()) {
 						methodTag.get(READ_ONLY).add(method.resolveBinding().getKey());
 					}if(visit.isThreadSafe() && visit.isReadOnly()) {
 						methodTag.get(THREAD_SAFE).add(method.resolveBinding().getKey());
+					}if(visit.isNotParallelisable()) {
+						methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
+					}if(!visit.isReadOnly() || !visit.isThreadSafe()) {
+						methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
 					}
 				}
 			}
@@ -146,8 +161,8 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 	protected ICleanUpFix createFix(CompilationUnit cu) throws CoreException {
 		if(cu == null || !fOptions.isEnabled("cleanup.graph_method")) {return null;}
 		List<CompilationUnitRewriteOperation> rewriteOperations = new ArrayList<>();
+		//TODO
 		//add .parallel() to a stream
-		
 		cu.accept(new ASTVisitor() {
 			@Override
 			public boolean visit(MethodInvocation node) {
@@ -156,15 +171,19 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 					if (! isStreamType(node.getExpression().resolveTypeBinding())) {
 						// node = coll.stream(), expr = coll
 //						rewriteOperations.add(new StreamToParallel(node));
+						//TODO
+						//Visit the method that call by stream()... 
+//						node.accept(new ASTVisitor() {
+//							public boolean visit(MethodInvocation node) {
+//								
+//								return false;
+//							}
+//						});
+						return false;
 					}
 				}
-//				IBinding binding = node.resolveMethodBinding();
-//				if (!methodTag.get(NOT_PAR).contains(binding.getKey())) {
-//					
-//				}
 				return true;
 			}
-			
 		});
 
 		if(rewriteOperations.isEmpty()) {
