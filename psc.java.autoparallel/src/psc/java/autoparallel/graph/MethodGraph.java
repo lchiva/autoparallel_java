@@ -6,6 +6,7 @@ import java.io.PrintWriter;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 //import java.util.Map.Entry;
 import java.util.Set;
 
@@ -52,14 +53,14 @@ public class MethodGraph {
 		useGraph.dotExport(out, "");
 
 		// containment edges 
-		//boolean doRedArcs=true;
-			// named sets
-		//	for (Entry<String, Set<Integer>> ent : setDeclarations.entrySet()) {
-		//		out.println("  "+ent.getKey()+ " [color=blue] ;");
-		//		for (Integer i : ent.getValue()) {
-		//			out.println("  "+ent.getKey()+ " -> n" + i + " [color=blue] ;");				
-		//		}
-		//	}
+		boolean doRedArcs=true;
+//			 named sets
+			for (Entry<String, Set<Integer>> ent : setDeclarations.entrySet()) {
+				out.println("  "+ent.getKey()+ " [color=blue] ;");
+				for (Integer i : ent.getValue()) {
+					out.println("  "+ent.getKey()+ " -> n" + i + " [color=blue] ;");				
+				}
+			}
 
 		out.println("}");
 		out.close();

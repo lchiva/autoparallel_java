@@ -75,7 +75,7 @@ public final class GraphBuilder  {
 		// The nodes we will collect in a first pass.
 		DependencyNodes nodes = new DependencyNodes();
 
-		parsedCu.stream().parallel().forEach((unit) -> {
+		parsedCu.stream().forEach((unit) -> {
 			unit.accept(new ASTVisitor() {
 				/**
 				* Deal with TypeDeclaration : classes + interfaces : add nodes for them, their methods, their attributes.
