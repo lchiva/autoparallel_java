@@ -9,6 +9,7 @@ import java.util.Set;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
+import org.eclipse.jdt.core.Flags;
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.dom.ASTVisitor;
@@ -113,7 +114,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 						methodTag.get(READ_ONLY).add(methodDecla.resolveBinding().getKey());
 					}
 					// if visit is threadSafe and is readOnly we add that method in list of method that has tag THREAD_SAFE
-					if(visit.isThreadSafe() && visit.isReadOnly()) {
+					if(Flags.isSynchronized(methodDecla.getModifiers()) || (visit.isThreadSafe() && visit.isReadOnly())) {
 						methodTag.get(THREAD_SAFE).add(methodDecla.resolveBinding().getKey());
 					}
 					// if visit is notPara we add that method in list of method that has tag NOT_PAR
@@ -121,8 +122,11 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 						methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
 					}
 					// if visit is not readonly or not threadSafe, we add that method in list of method that has tag NOT_PAR
-					if(!visit.isReadOnly() || !visit.isThreadSafe()) {
-						methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
+					if(!visit.isThreadSafe()) {
+						//check if there is synchronized modifier 
+						if(!visit.isReadOnly() || !Flags.isSynchronized(methodDecla.getModifiers())) {
+							methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
+						}
 					}
 				}
 			}
@@ -133,13 +137,17 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 					method.accept(visit);
 					if(visit.isReadOnly()) {
 						methodTag.get(READ_ONLY).add(method.resolveBinding().getKey());
-					}if(visit.isThreadSafe() && visit.isReadOnly()) {
+					}if(Flags.isSynchronized(method.getModifiers()) || (visit.isThreadSafe() && visit.isReadOnly())) {
 						methodTag.get(THREAD_SAFE).add(method.resolveBinding().getKey());
 					}if(visit.isNotParallelisable()) {
 						methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
-					}if(!visit.isReadOnly() || !visit.isThreadSafe()) {
-						methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
 					}
+					if(!visit.isThreadSafe()) {
+						if(!visit.isReadOnly() || !Flags.isSynchronized(method.getModifiers())) {
+							methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
+						}
+					}
+					
 				}
 			}
 			System.out.println(methodTag);
