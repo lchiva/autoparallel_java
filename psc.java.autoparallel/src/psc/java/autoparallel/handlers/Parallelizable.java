@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -16,7 +17,6 @@ import org.eclipse.jdt.core.dom.ASTVisitor;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.IBinding;
 import org.eclipse.jdt.core.dom.IMethodBinding;
-import org.eclipse.jdt.core.dom.ITypeBinding;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
 import org.eclipse.jdt.internal.corext.fix.CompilationUnitRewriteOperationsFix;
@@ -37,14 +37,20 @@ import psc.java.autoparallel.graph.MethodGraph;
 
 @SuppressWarnings("restriction")
 public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
+	//Keyword for methodTag that store readOnly method
 	private static final String READ_ONLY = "ReadOnly";
+	//Keyword for methodTag that store threadSafe method
 	private static final String THREAD_SAFE = "ThreadSafe";
+	//Keyword for methodTag that store NotParallelisable method
 	private static final String NOT_PAR = "NotParallelizable";
+
 	private CleanUpOptions fOptions;
 	private RefactoringStatus fStatus;
-	private HashMap<String, Set<String>> methodTag;
 
-	
+	//Map that store the set of method and its corresponding methodTag
+	public HashMap<String, Set<String>> methodTag;
+
+
 	/*
 	 * Method for CleanUp
 	 */
@@ -96,13 +102,13 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 			/*
 			 * cycle in invocation graph by calling a function findCycles()
 			 */
-			List<List<Integer>> cycle = graphAdjacent.findCycles(); 
+			List<List<Integer>> cycle = graphAdjacent.findCycles();
 			/*
 			 * list of list of methods that create cycle in invocation graph
 			 */
-			List<List<MethodDeclaration>> cycleMethod = cycleMethodDeclaration(cycle, graph.getNodes()); 
+			List<List<MethodDeclaration>> cycleMethod = cycleMethodDeclaration(cycle, graph.getNodes());
 			for(Integer i : graphAdjacent) { // iteration on all node(method)
-				IMethodBinding bind = graph.getNodes().get(i);
+				IMethodBinding bind = graph.getNodes().get(i);	
 				MethodDeclaration methodDecla =  graph.getNodes().get(bind); // get method declaration correspond to index i
 				// we treat the case that method doesn't create cycle
 				if(!inCycle(methodDecla,cycleMethod)) { // verify if this method doesnt create cycle
@@ -110,7 +116,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 																		// this give methodTag to class MethodVisitor.
 					methodDecla.accept(visit);
 					// if visit is readonly we add that method in list of method that has tag READ_ONLY
-					if(visit.isReadOnly()) { 
+					if(visit.isReadOnly()) {
 						methodTag.get(READ_ONLY).add(methodDecla.resolveBinding().getKey());
 					}
 					// if visit is threadSafe and is readOnly we add that method in list of method that has tag THREAD_SAFE
@@ -123,7 +129,8 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 					}
 					// if visit is not readonly or not threadSafe, we add that method in list of method that has tag NOT_PAR
 					if(!visit.isThreadSafe()) {
-						//check if there is synchronized modifier 
+						//!Flags.isSync..... is for verifier if the modifier consist synchronized keyword
+						//check if there is synchronized modifier
 						if(!visit.isReadOnly() || !Flags.isSynchronized(methodDecla.getModifiers())) {
 							methodTag.get(NOT_PAR).add(methodDecla.resolveBinding().getKey());
 						}
@@ -147,10 +154,9 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 							methodTag.get(NOT_PAR).add(method.resolveBinding().getKey());
 						}
 					}
-					
+
 				}
 			}
-			System.out.println(methodTag);
 		}
 
 		return new RefactoringStatus();
@@ -169,27 +175,171 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 	protected ICleanUpFix createFix(CompilationUnit cu) throws CoreException {
 		if(cu == null || !fOptions.isEnabled("cleanup.graph_method")) {return null;}
 		List<CompilationUnitRewriteOperation> rewriteOperations = new ArrayList<>();
-		//TODO
+
 		//add .parallel() to a stream
 		cu.accept(new ASTVisitor() {
+			//stateful operation
+			private boolean hasSIOs = false;
+			//side effect
+			private boolean sideEffect = false;
+			//reduction ordered matter
+			private boolean roms = true;
+			//treated = already study
+			private boolean treated = true;
+			// ordered of stream
+			private boolean unordered = false;
+			
 			@Override
 			public boolean visit(MethodInvocation node) {
-				ITypeBinding resType = node.resolveTypeBinding();
-				if (isStreamType(resType)) {
-					if (! isStreamType(node.getExpression().resolveTypeBinding())) {
-						// node = coll.stream(), expr = coll
-//						rewriteOperations.add(new StreamToParallel(node));
-						//TODO
-						//Visit the method that call by stream()... 
-//						node.accept(new ASTVisitor() {
-//							public boolean visit(MethodInvocation node) {
-//								
-//								return false;
-//							}
-//						});
-						return false;
+				//System.out.println(methodTag);
+				IBinding binding = node.resolveMethodBinding();
+				//if stream is treated we set everything to default and we study another stream
+				if(treated) {
+					hasSIOs = false;
+					sideEffect = false;
+					roms = true;
+					unordered = false;
+				}
+				//we analyse a stream by beginning with terminal operation
+				if(binding.getKey().contains(".forEach") || binding.getKey().contains(".collect") || binding.getKey().contains("reduce")) {
+					treated = false;
+					//TreeSet preserve ordered
+					if(binding.getKey().contains(".collect") && binding.getKey().contains("Ljava/util/TreeSet")) {
+						roms = true;
+					}
+					//HashSet doesn't preserve ordered
+					if(binding.getKey().contains(".collect") && binding.getKey().contains("Ljava/util/HashSet")) {
+						roms = false;
+					}
+					if(binding.getKey().contains(".collect") && binding.getKey().contains("Ljava/util/Set")) {
+						roms = false;
 					}
 				}
+				//check if the reduction ordered matter
+				//ref : https://docs.oracle.com/javase/8/docs/api/java/util/stream/Stream.html
+				//two operations that return void and scalar which ROMs = true
+				if(binding.getKey().contains("Ljava/util/Optional")) {
+					if(binding.getKey().contains(".findFirst()")
+							|| binding.getKey().contains(".forEachOrdered()")) {
+						roms = true;
+					}else {
+						roms = false;
+					}
+					//Here we begin the analysis of the stream pipeline, Ljava/util/Optional : ifPresent, etc.
+					treated = false;
+				}
+				//Check if there exists a SIOs in the pipeline
+				//reference: https://www.oreilly.com/library/view/introduction-to-programming/9781788839129/50f54a6f-dd25-40bc-89d2-31b73d95b6b7.xhtml
+				if(binding.getKey().contains(".reduce") || binding.getKey().contains(".sorted")
+						|| binding.getKey().contains(".limit") || binding.getKey().contains(".skip")
+						|| binding.getKey().contains(".distinct")) {
+					hasSIOs = true;
+				}
+				//Study on each lambda expression
+				if(binding.getKey().contains("Ljava/util/function/")) {
+					System.out.println(binding.getKey());
+					//get lambda
+					
+					//Represents a function that accepts a valued argument and produces a result.
+					if(binding.getKey().contains("Ljava/util/function/Function")) {
+						//we check if it calls Function, except in map
+						if(!binding.getKey().contains(".map")) {
+						sideEffect = true;
+					}
+					}if(binding.getKey().contains("Operator")) {
+						//we check if it perform operation, except in map
+						if(!binding.getKey().contains(".map")) {
+							sideEffect = true;
+						}
+					}
+					//check if lambda expression produces side effect, for example .add(), system.out.println
+					if(binding.getKey().contains("Consumer")) {
+						if(binding.getKey().contains(".forEach") || binding.getKey().contains(".peek")){
+						sideEffect = true;
+						}
+					}
+				}
+				//check if stream contains .unordered(), sert à verifier la 3eme propriété
+				if(binding.getKey().contains(".unordered")) {
+					unordered = true;
+				}
+				//check if stream already run in parallel, if it is, then we stop the analysis by assigning treated = true;
+				if(binding.getKey().contains(".parallel")) {
+					treated = true;
+				}
+				//if the stream is not yet studied
+				if(!treated) {
+					//focus on the methodinvocation that contains .stream .i.e set.stream()
+					if(binding.getKey().contains(".stream")) {
+						String str = node.getExpression().getRoot().toString();
+						String str1 = node.getExpression().toString();
+						if(str.contains(node.getExpression().resolveTypeBinding().getName() + " " + str1)) {
+							int index = str.indexOf(node.getExpression().resolveTypeBinding().getName() + " " + str1);
+							String analyseStr = str.substring(index,index+100);
+							if(analyseStr.contains("PriorityQueue<>()") 
+									|| analyseStr.contains("HashSet<>")) {
+								if(!sideEffect) {
+									rewriteOperations.add(new StreamToParallel(node));
+									treated = true;
+								}
+							}
+						}
+						//check if the stream is Ordered
+						if(binding.getKey().contains("Ljava/util/Arrays")) {
+							//P3
+							if(!sideEffect) {
+								if(hasSIOs) {
+									if(!roms) {
+										if(unordered){
+											rewriteOperations.add(new StreamToParallel(node));
+											treated = true;
+										}
+									}
+								}
+								//P1 and //P2
+								else {
+									rewriteOperations.add(new StreamToParallel(node));
+									treated = true;
+								}
+							}
+						}
+						else if(binding.getKey().contains("Ljava/util/Collection")) {
+							//Check ordered or undordered 
+							if(!sideEffect) {
+								if(hasSIOs) {
+									if(!roms) {
+										if(unordered){
+											rewriteOperations.add(new StreamToParallel(node));
+											treated = true;
+										}
+									}
+								}else {
+									rewriteOperations.add(new StreamToParallel(node));
+									treated = true;
+								}
+							}
+						}
+						treated = true;
+					}if(binding.getKey().contains("Ljava/util/stream/Stream<>;.of")
+							|| binding.getKey().contains(".range")
+							|| binding.getKey().contains("iterate")) {
+						if(!sideEffect) {
+							if(hasSIOs) {
+								if(!roms) {
+									if(unordered){
+										rewriteOperations.add(new StreamToParallel(node));
+										treated = true;
+									}
+								}
+							}else {
+								rewriteOperations.add(new StreamToParallel(node));
+								treated = true;
+							}
+						}
+						treated = true;
+					}
+				}
+
 				return true;
 			}
 		});
@@ -200,26 +350,10 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 		else return new CompilationUnitRewriteOperationsFix("", cu,
 				rewriteOperations.toArray(new CompilationUnitRewriteOperation[rewriteOperations.size()]));
 	}
-	
-	/*
-	 * To check if the method call is stream type
-	 */
-	private boolean isStreamType(ITypeBinding resType) {
-		// TODO : test subtype somehow ?
-		// type.isSubTypeCompatible(streamType.);
-		try {
-			String qname = resType.getName().replaceAll("<.*", "");
-			String qpkg = resType.getPackage().getName();
-			return qname.equals("Stream") && qpkg.equals("java.util.stream");
-		} catch (NullPointerException e) {
-			return false;
-		}
-	}
-	
+
 	/*
 	 * check if the method is in cycle (got called by other functions)
 	 */
-	
 	private boolean inCycle(MethodDeclaration node, List<List<MethodDeclaration>> cycleMeth) {
 		for (List<MethodDeclaration> methodDeclar : cycleMeth) {
 			for (MethodDeclaration methodDeclaration : methodDeclar) {
@@ -231,7 +365,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp  {
 	/*
 	 * cycle of methodDeclaration
 	 */
-	
+
 	private List<List<MethodDeclaration>> cycleMethodDeclaration(List<List<Integer>> cycle, DependencyNodes nodes){
 		List<List<MethodDeclaration>> listlistMethod = new ArrayList<>();
 		for (List<Integer> list : cycle) {
