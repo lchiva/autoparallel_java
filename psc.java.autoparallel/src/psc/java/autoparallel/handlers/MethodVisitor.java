@@ -110,7 +110,8 @@ public class MethodVisitor extends ASTVisitor {
 //		System.out.println(node.resolveMethodBinding().getDeclaringClass());
 		//Case of Array
 		//Call method from class Array
-		if(binding.getKey().contains("Ljava/util/ArrayList")) {
+		
+		if(binding.getKey().contains("Ljava/util")) {
 			if(binding.getKey().contains(".add") || binding.getKey().contains(".clear") || binding.getKey().contains(".remove")
 					|| binding.getKey().contains(".removeAll")
 					|| binding.getKey().contains(".addAll")
@@ -118,43 +119,6 @@ public class MethodVisitor extends ASTVisitor {
 					|| binding.getKey().contains(".replaceAll")
 					|| binding.getKey().contains(".set")
 					|| binding.getKey().contains(".sort")
-					) {
-				AssignVisitor av = new AssignVisitor();
-				node.getExpression().accept(av);
-				if(av.hasWrite) {
-					readOnly = false;
-					notParallelisable = true;
-					threadSafe = false;
-				}
-			}
-		}
-		//Case HashSet
-		//Call method from class HashSet
-		if(binding.getKey().contains("Ljava/util/HashSet")) {
-			if(binding.getKey().contains(".add")
-					|| binding.getKey().contains(".clear")
-					|| binding.getKey().contains(".remove")
-					|| binding.getKey().contains(".removeAll")
-					|| binding.getKey().contains(".addAll")
-					) {
-				AssignVisitor av = new AssignVisitor();
-				node.getExpression().accept(av);
-				if(av.hasWrite) {
-					readOnly = false;
-					notParallelisable = true;
-					threadSafe = false;
-				}
-			}
-		}
-		//Case priorityQueue
-		//Call method from class PriorityQueue
-		if(binding.getKey().contains("Ljava/util/PriorityQueue")) {
-			if(binding.getKey().contains(".add")
-					|| binding.getKey().contains(".clear")
-					|| binding.getKey().contains(".poll")
-					|| binding.getKey().contains(".remove")
-					|| binding.getKey().contains(".removeAll")
-					|| binding.getKey().contains(".addAll")
 					) {
 				AssignVisitor av = new AssignVisitor();
 				node.getExpression().accept(av);
