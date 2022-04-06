@@ -9,15 +9,37 @@ import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+public class ParallelTest {
+	static int x=0;
 
-// sert à tester la parallélisation des streams
+	public static void main() {
+		List<Integer> nombres=new ArrayList<>();
+		List<Integer> nombres2=new ArrayList<>();
 
-public class StreamExample {
+		int sum=0;
 
-    static int x = 0;
-	public static void main(String[] args) {
+		boolean b = true;
 
-		// not parallelisable: forEach create side effect and sorts is SIOs
+
+		//not parallelisable, modify field
+		sum+=nombres.stream().mapToInt(i->ParallelTest.x+=1).sum();
+
+		//parallelisable
+		sum+=nombres.stream().mapToInt(i->i).sum();
+		sum-=nombres.stream().filter(i->i>0).mapToInt(i->i).sum();
+		b &= nombres.stream().allMatch(i->i>0);
+		b |= nombres.stream().filter(i->i<15).anyMatch(i->i>0);
+
+		//parallelisable
+		nombres2.addAll(nombres.stream().filter(i->i<15).map(i->i-15).collect(Collectors.toList()));
+		//parallelisable
+		nombres.stream().forEach(i->i+=1);
+		//not parallelisable
+		nombres.stream().forEach(i->nombres2.add(i));
+		//not parallelisable, calls .add()
+		nombres2.addAll(nombres.stream().filter(i->i<15).map(i->{nombres2.add(i);return i;}).collect(Collectors.toList()));
+
+		//not parallelisable, calls .add()
 		Collection<String> results = new ArrayList<>();
 		Collection<String> set = new HashSet<>() {
 		};
@@ -29,48 +51,23 @@ public class StreamExample {
 				.collect(Collectors.toCollection(TreeSet::new));
 		//not parallelisable : ordered, with SIOs (sort)
 		Stream.of(1, 2, 3).sorted().findFirst().ifPresent(System.out::println); // a1
-//
-//		//parallelisable : ordered, without SIOs
-//		List<Integer> l = new ArrayList<>();
-		Arrays.stream(new int[] { 1, 2, 3 }).map(s-> s*2+1).average().ifPresent(System.out::println); // 5.0
 
+		//parallelisable : ordered, without SIOs
+		Arrays.stream(new int[] { 1, 2, 3 }).map(s-> s*2+1).average().ifPresent(System.out::println); // 5.0
 		//parallelisable
 		Collection<Integer> pq = new PriorityQueue<>();
 		pq.add(5);
 		pq.add(8);
 		pq.add(3);
 		pq.stream().map(s -> s + 1).sorted().collect(Collectors.toCollection(TreeSet::new));
-
 		//parallelisable
-		int sum=0;
-		List<Integer> nombres=new ArrayList<>();
-		sum+=nombres.stream().mapToInt(i->i).sum();
-		
+		int sum1=0;
+		List<Integer> nombres1=new ArrayList<>();
+		sum1+=nombres1.stream().mapToInt(i->i).sum();
+
 		Stream.generate(new Random()::nextInt)
-	    .limit(5).forEach(System.out::println); 
-
-        List<Integer> nombres=new ArrayList<Integer>();
-		List<Integer> nombres2=new ArrayList<Integer>();
-
-		int sum=0;
-		
-		boolean b = true;
-
-		// Tout ceci doit marcher
-		
-		sum+=nombres.stream().mapToInt(i->StreamExample.x+=1).sum();
-		
-		sum+=nombres.stream().mapToInt(i->i).sum();
-		sum-=nombres.stream().filter(i->i>0).mapToInt(i->i).sum();
-		b &= nombres.stream().allMatch(i->i>0);
-		b |= nombres.stream().filter(i->i<15).anyMatch(i->i>0);
-		nombres2.addAll(nombres.stream().filter(i->i<15).map(i->i-15).collect(Collectors.toList()));		
-		// Ca oui si les éléments distincts
-		nombres.stream().forEach(i->i+=1);
-		// Ca non
-		nombres.stream().forEach(i->nombres2.add(i));
-		nombres2.addAll(nombres.stream().filter(i->i<15).map(i->{nombres2.add(i);return i;}).collect(Collectors.toList()));
-
-	    }
+	    .limit(5).forEach(System.out::println);
 	}
+}
+
 
