@@ -257,20 +257,23 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 						|| binding.getKey().contains(".limit") || binding.getKey().contains(".skip")
 						|| binding.getKey().contains(".distinct")) {
 					hasSIOs = true;
+					if(unordered){
+						unordered = false;
+					}
 				}
-				System.out.println(binding.getKey());
 				// Study on each lambda expression
 				if (binding.getKey().contains("Ljava/util/function/")) {
 					// Represents a function that accepts a valued argument and produces a result.
 					if (binding.getKey().contains("Ljava/util/function/") && binding.getKey().contains("Function")) {
 						// we check if it calls Function, except in map
 						if (binding.getKey().contains(".map")) {
+							//we check if there is a lambda expression exist in .map()
 							if (node.arguments().get(0) instanceof LambdaExpression) {
 								ASTNode ast = ((LambdaExpression) node.arguments().get(0)).getBody();
+								//visit the body after the lambda expression
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-
 										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
 											sideEffect = true;
 										}
@@ -312,7 +315,9 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 										return true;
 									}
 								});
-							} else {
+							} 
+							//check if there is a method reference
+							else {
 								MethodReference method = ((MethodReference) node.arguments().get(0));
 								if (methodTag.get(NOT_PAR).contains(method.resolveMethodBinding().getKey())) {
 									sideEffect = true;
@@ -323,15 +328,15 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 							}
 						}
 					}
-					if (binding.getKey().contains("Operator")) {
-						// we check if it perform operation, except in map
-						if (binding.getKey().contains(".map")) {
+					// check if lambda expression produces side effect, for example .add(),
+					// system.out.println
+					if (binding.getKey().contains("Consumer")) {
+						if (binding.getKey().contains(".forEach") || binding.getKey().contains(".peek")) {
 							if (node.arguments().get(0) instanceof LambdaExpression) {
 								ASTNode ast = ((LambdaExpression) node.arguments().get(0)).getBody();
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-
 										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
 											sideEffect = true;
 										}
@@ -340,7 +345,6 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 										}
 										return true;
 									}
-
 									@Override
 									public boolean visit(Assignment node) {
 										AssignVisitor av = new AssignVisitor();
@@ -350,61 +354,6 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 										}
 										return true;
 									}
-
-									@Override
-									public boolean visit(PostfixExpression node) {
-										System.out.println(node);
-										AssignVisitor av = new AssignVisitor();
-										node.getOperand().accept(av);
-										if (av.hasWrite) {
-											sideEffect = true;
-										}
-										return true;
-									}
-
-									@Override
-									public boolean visit(PrefixExpression node) {
-										System.out.println(node);
-										AssignVisitor av = new AssignVisitor();
-										node.getOperand().accept(av);
-										if (av.hasWrite) {
-											sideEffect = true;
-										}
-										return true;
-									}
-								});
-							}
-						}
-					}
-					// check if lambda expression produces side effect, for example .add(),
-					// system.out.println
-					if (binding.getKey().contains("Consumer")) {
-						if (binding.getKey().contains(".forEach") || binding.getKey().contains(".peek")) {
-							if (node.toString().contains("->")) {
-								ASTNode ast = ((LambdaExpression) node.arguments().get(0)).getBody();
-								ast.accept(new ASTVisitor() {
-									@Override
-									public boolean visit(MethodInvocation node) {
-
-										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
-										}
-										if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
-										}
-										return true;
-									}
-
-									@Override
-									public boolean visit(Assignment node) {
-										AssignVisitor av = new AssignVisitor();
-										node.getLeftHandSide().accept(av);
-										if (av.hasWrite) {
-											sideEffect = true;
-										}
-										return true;
-									}
-
 									@Override
 									public boolean visit(PostfixExpression node) {
 										System.out.println(node);
