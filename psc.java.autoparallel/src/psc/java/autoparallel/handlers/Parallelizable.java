@@ -274,11 +274,15 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
-										}
-										if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
+										AssignVisitor av = new AssignVisitor();
+										node.getExpression().accept(av);
+										if(av.hasWrite) {
+											if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
+												sideEffect = true;
+											}
+											if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
+												sideEffect = true;
+											}
 										}
 										return true;
 									}
@@ -337,11 +341,15 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
-										}
-										if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
-											sideEffect = true;
+										AssignVisitor av = new AssignVisitor();
+										node.getExpression().accept(av);
+										if(av.hasWrite) {
+											if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
+												sideEffect = true;
+											}
+											if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
+												sideEffect = true;
+											}
 										}
 										return true;
 									}
@@ -397,6 +405,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 					if (binding.getKey().contains(".stream")) {
 						String str = node.getExpression().getRoot().toString();
 						String str1 = node.getExpression().toString();
+						//analyse the string after the " = new"
 						if (str.contains(node.getExpression().resolveTypeBinding().getName() + " " + str1)) {
 							int indexStart = str.indexOf(node.getExpression().resolveTypeBinding().getName() + " " + str1);
 							int indexEnd = 0;
@@ -407,6 +416,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 								}
 							}
 							String analyseStr = str.substring(indexStart, indexEnd);
+							
 							if (analyseStr.contains("PriorityQueue<>()") || analyseStr.contains("HashSet<>")) {
 								if (!sideEffect) {
 									rewriteOperations.add(new StreamToParallel(node));
