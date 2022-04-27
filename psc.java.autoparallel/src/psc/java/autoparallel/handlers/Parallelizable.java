@@ -267,6 +267,7 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 					if (binding.getKey().contains("Ljava/util/function/") && binding.getKey().contains("Function")) {
 						// we check if it calls Function, except in map
 						if (binding.getKey().contains(".map")) {
+							
 							//we check if there is a lambda expression exist in .map()
 							if (node.arguments().get(0) instanceof LambdaExpression) {
 								ASTNode ast = ((LambdaExpression) node.arguments().get(0)).getBody();
@@ -274,15 +275,11 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-										AssignVisitor av = new AssignVisitor();
-										node.getExpression().accept(av);
-										if(av.hasWrite) {
-											if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
-												sideEffect = true;
-											}
-											if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
-												sideEffect = true;
-											}
+										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
+											sideEffect = true;
+										}
+										if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
+											sideEffect = true;
 										}
 										return true;
 									}
@@ -338,18 +335,19 @@ public class Parallelizable extends AbstractMultiFix implements ICleanUp {
 						if (binding.getKey().contains(".forEach") || binding.getKey().contains(".peek")) {
 							if (node.arguments().get(0) instanceof LambdaExpression) {
 								ASTNode ast = ((LambdaExpression) node.arguments().get(0)).getBody();
+								
 								ast.accept(new ASTVisitor() {
 									@Override
 									public boolean visit(MethodInvocation node) {
-										AssignVisitor av = new AssignVisitor();
-										node.getExpression().accept(av);
-										if(av.hasWrite) {
-											if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
-												sideEffect = true;
-											}
-											if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
-												sideEffect = true;
-											}
+										System.out.println(node);
+										if(node.toString().contains("System.out.println")) {
+											sideEffect = true;
+										}
+										if (methodTag.get(NOT_PAR).contains(node.resolveMethodBinding().getKey())) {
+											sideEffect = true;
+										}
+										if (callNotParallelisableMethod(node.resolveMethodBinding().getKey())) {
+											sideEffect = true;
 										}
 										return true;
 									}
