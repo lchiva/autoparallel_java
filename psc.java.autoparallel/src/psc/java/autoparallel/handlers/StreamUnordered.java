@@ -11,11 +11,11 @@ import org.eclipse.jdt.internal.corext.fix.CompilationUnitRewriteOperationsFix.C
 import org.eclipse.jdt.internal.corext.fix.LinkedProposalModel;
 import org.eclipse.jdt.internal.corext.refactoring.structure.CompilationUnitRewrite;
 
-public class StreamToParallel extends CompilationUnitRewriteOperation {
+public class StreamUnordered extends CompilationUnitRewriteOperation {
 
 	private MethodInvocation node;
 
-	public StreamToParallel(MethodInvocation node) {
+	public StreamUnordered(MethodInvocation node) {
 		this.node = node ;
 	}
 
@@ -25,8 +25,7 @@ public class StreamToParallel extends CompilationUnitRewriteOperation {
 		final ASTRewrite rewrite = cuRewrite.getASTRewrite();  //We create a new ASTRewrite, that will contain all our modification
 		MethodInvocation invoke = ast.newMethodInvocation(); 
 		invoke.setExpression((Expression) ASTNode.copySubtree(ast,node));
-		invoke.setName(ast.newSimpleName("parallel"));
+		invoke.setName(ast.newSimpleName("unordered"));
 		rewrite.replace(node, invoke, null); //We add our modification to the record
 	}
-
 }

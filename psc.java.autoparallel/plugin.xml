@@ -4,8 +4,8 @@
    <extension
          point="org.eclipse.jdt.ui.cleanUps">
       <cleanUp
-            class="psc.java.autoparallel.testing.Testing"
-            id="psc.java.autoparallel.testing.Testing">
+            class="psc.java.autoparallel.handlers.Parallelizable"
+            id="psc.java.autoparallel.handlers.Parallelizable">
       </cleanUp>
       <cleanUpConfigurationUI
             class="psc.java.autoparallel.testing.TestingCleanUpPage"
